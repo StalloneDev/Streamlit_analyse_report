@@ -74,7 +74,7 @@ selection = st.sidebar.radio("Sélectionnez une analyse:", list(pages.keys()))
 page = pages[selection]
 
 st.sidebar.markdown("---")
-st.sidebar.info("📅 Période: 27/01/2026 - 02/02/2026")
+st.sidebar.info("📅 Hebdomadaire")
 
 # Section Export
 st.sidebar.markdown("---")
@@ -84,11 +84,16 @@ col1, col2 = st.sidebar.columns(2)
 
 with col1:
     # Export Excel - Page actuelle
-    if st.button("📊 Excel", key="export_excel_current", use_container_width=True):
-        excel_data = export_utils.export_data_to_excel(data, current_page=page)
+    if st.button("📊 Excel (Page)", key="export_excel_current", use_container_width=True):
+        # Generate report content for the current page
+        report_content = None
+        if page in pdf_generators.PDF_GENERATORS:
+            report_content = pdf_generators.PDF_GENERATORS[page](data)
+            
+        excel_data = export_utils.export_data_to_excel(data, current_page=page, report_content=report_content)
         filename = export_utils.get_filename(selection, "xlsx")
         st.sidebar.download_button(
-            label="⬇️ Télécharger",
+            label="⬇️ Télécharger Excel",
             data=excel_data,
             file_name=filename,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -97,21 +102,25 @@ with col1:
 
 with col2:
     # Export Excel - Toutes les données
-    if st.button("📊 Excel (Tout)", key="export_excel_all", use_container_width=True):
-        excel_data_all = export_utils.export_data_to_excel(data, current_page=None)
-        filename_all = export_utils.get_filename("Rapport_Complet", "xlsx")
-        st.sidebar.download_button(
-            label="⬇️ Télécharger",
-            data=excel_data_all,
-            file_name=filename_all,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="download_excel_all"
-        )
+    if st.button("📑 Excel (Tout)", key="export_excel_all", use_container_width=True):
+        with st.spinner('Génération du rapport Excel complet...'):
+            # Generate structured report content (dict of sheets)
+            full_report_content = pdf_generators.generate_structured_report(data)
+            
+            excel_data_all = export_utils.export_data_to_excel(data, current_page=None, report_content=full_report_content)
+            filename_all = export_utils.get_filename("Rapport_Complet", "xlsx")
+            st.sidebar.download_button(
+                label="⬇️ Télécharger Excel Complet",
+                data=excel_data_all,
+                file_name=filename_all,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_excel_all"
+            )
 
 st.sidebar.markdown("---")
 
-# PDF Export
-if st.sidebar.button("📄 Exporter PDF", key="export_pdf", use_container_width=True):
+# PDF Export - Page actuelle
+if st.sidebar.button("📄 PDF (Page)", key="export_pdf", use_container_width=True):
     try:
         # Generate PDF content on-demand using the generator for the current page
         if page in pdf_generators.PDF_GENERATORS:
@@ -126,11 +135,29 @@ if st.sidebar.button("📄 Exporter PDF", key="export_pdf", use_container_width=
                 key="download_pdf"
             )
         else:
-            st.sidebar.info(f"Export PDF non disponible pour cette page. Pages supportées: Synthèse, Durée-Distance, Trajets, Jour/Nuit")
+            st.sidebar.info(f"Export PDF non disponible pour cette page.")
     except Exception as e:
         st.sidebar.error(f"Erreur lors de la génération du PDF: {str(e)}")
 
-st.sidebar.caption("💡 **Excel**: Données brutes | **PDF**: Rapport complet avec graphiques")
+# PDF Export - Complet
+if st.sidebar.button("📑 PDF (Tout)", key="export_pdf_all", use_container_width=True):
+    try:
+        with st.spinner('Génération du rapport complet...'):
+            pdf_content = pdf_generators.generate_full_report(data)
+            pdf_data = export_utils.create_pdf_report("Rapport Complet", pdf_content)
+            filename_pdf = export_utils.get_filename("Rapport_Complet", "pdf")
+            st.sidebar.download_button(
+                label="⬇️ Télécharger Rapport Complet",
+                data=pdf_data,
+                file_name=filename_pdf,
+                mime="application/pdf",
+                key="download_pdf_all"
+            )
+        st.sidebar.success("Rapport complet généré !")
+    except Exception as e:
+        st.sidebar.error(f"Erreur lors de la génération du rapport complet: {str(e)}")
+        
+st.sidebar.caption("💡 **Excel/PDF**: Utilisez les boutons (Tout) pour le rapport complet")
 
 
 # Fonction utilitaire pour extraire les véhicules
@@ -160,7 +187,8 @@ def parse_duration(duration_str):
 # ===== PAGE SYNTHÈSE =====
 if page == "synthese":
     st.title("📊 Rapport d'Analyses Détaillées")
-    st.markdown("### BP - SADCI GAS PARAKOU - Semaine du 27/01/2026 au 02/02/2026")
+    today_date = datetime.now().strftime("%d/%m/%Y")
+    st.markdown(f"### BP - SADCI GAS PARAKOU - Rapport du {today_date}")
     st.markdown("---")
     
     st.markdown("""

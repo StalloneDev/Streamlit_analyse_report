@@ -11,13 +11,14 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import base64
 
-def export_data_to_excel(data_sheets, current_page=None):
+def export_data_to_excel(data_sheets, current_page=None, report_content=None):
     """
-    Export data to Excel file
+    Export data to Excel file with optional report content (charts, text)
     
     Args:
         data_sheets: Dictionary of dataframes from the loaded Excel file
         current_page: If specified, export only data for this page. Otherwise export all.
+        report_content: List of dictionaries with 'title', 'figure', 'text', etc. (from pdf_generators)
     
     Returns:
         BytesIO object containing the Excel file
@@ -35,13 +36,86 @@ def export_data_to_excel(data_sheets, current_page=None):
             'border': 1
         })
         
-        # Determine which sheets to export
+        # Format for text wrapping
+        text_format = workbook.add_format({'text_wrap': True, 'valign': 'top'})
+        title_format = workbook.add_format({'bold': True, 'font_size': 14})
+        
+        if report_content:
+            # Check if it's a structured report (dict of sheets) or flat list
+            if isinstance(report_content, dict):
+                # Structured export - Multiple sheets
+                for sheet_title, section_content in report_content.items():
+                    worksheet = workbook.add_worksheet(sheet_title[:31]) # Excel limit
+                    worksheet.set_column('A:A', 50) 
+                    worksheet.set_column('B:G', 12)
+                    
+                    row = 0
+                    worksheet.write(row, 0, sheet_title, title_format)
+                    row += 2
+                    
+                    # Write content for this section (same logic as before)
+                    for section in section_content:
+                         # Title
+                        if 'title' in section and section['title']:
+                            worksheet.write(row, 0, section['title'], title_format)
+                            row += 1
+                        
+                        # Metrics (text representation)
+                        if 'metrics' in section and section['metrics']:
+                            for m in section['metrics']:
+                                metric_text = f"{m.get('label')}: {m.get('value')}"
+                                worksheet.write(row, 0, metric_text)
+                                row += 1
+                            row += 1
+
+                        # Text interpretation
+                        if 'text' in section and section['text']:
+                            text = section['text'].strip()
+                            text = text.replace('**', '').replace('###', '').replace('- ', '• ')
+                            worksheet.write(row, 0, text, text_format)
+                            lines = text.count('\n') + (len(text) // 60)
+                            row += max(1, lines) + 1
+                        
+                        # Chart
+                        if 'figure' in section and section['figure'] is not None:
+                            try:
+                                img_bytes = pio.to_image(section['figure'], format='png', width=800, height=450, scale=1)
+                                image_data = io.BytesIO(img_bytes)
+                                worksheet.insert_image(row, 1, 'chart.png', {'image_data': image_data, 'x_scale': 0.7, 'y_scale': 0.7})
+                                row += 15 
+                            except Exception:
+                                worksheet.write(row, 1, "[Graphique non disponible]")
+                                row += 1
+                        
+                        # Table
+                        if 'table' in section and section['table'] is not None:
+                            df = section['table'].head(50)
+                            for col_num, value in enumerate(df.columns.values):
+                                worksheet.write(row, col_num, value, header_format)
+                            for i, record in enumerate(df.values):
+                                for j, val in enumerate(record):
+                                    val_str = str(val) if pd.notna(val) else ""
+                                    worksheet.write(row + 1 + i, j, val_str)
+                            row += len(df) + 2
+                        
+                        row += 1
+
+            else:
+                # Legacy behavior - specific report for one page or full report (list)
+                # If list, put all in one "Rapport Analyse" sheet
+                worksheet = workbook.add_worksheet("Rapport Analyse")
+                # ... (rest of legacy code is fine, checking data loop below)
+
+        # Determine which sheets to export (Data sheets)
         if current_page:
             sheets_to_export = get_sheets_for_page(current_page)
         else:
             sheets_to_export = data_sheets.keys()
         
-        # Export each sheet
+        # Track created sheets to avoid duplicates
+        existing_sheets = set(writer.book.sheetnames.keys())
+
+        # Export each sheet (Data)
         for sheet_name in sheets_to_export:
             if sheet_name in data_sheets:
                 df = data_sheets[sheet_name]
@@ -49,7 +123,13 @@ def export_data_to_excel(data_sheets, current_page=None):
                 # Clean sheet name for Excel compatibility
                 clean_name = sheet_name[:31]  # Excel limit
                 
+                # Should not collide with report sheets (which occupy "Notifications", etc.)
+                # If collision, append " (Data)"
+                if clean_name.lower() in [s.lower() for s in existing_sheets]:
+                    clean_name = f"{clean_name[:24]} (Data)"
+                
                 df.to_excel(writer, sheet_name=clean_name, index=False)
+                existing_sheets.add(clean_name)
                 
                 # Get worksheet object
                 worksheet = writer.sheets[clean_name]
@@ -283,6 +363,24 @@ def create_pdf_report(page_name, charts_and_text):
         leading=14
     )
     
+    # Style pour les métriques
+    metric_style = ParagraphStyle(
+        'Metric',
+        parent=styles['Normal'],
+        fontSize=12,
+        textColor=colors.HexColor('#2c3e50'),
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    metric_label_style = ParagraphStyle(
+        'MetricLabel',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#7f8c8d'),
+        alignment=TA_CENTER
+    )
+    
     # Title page
     timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
     elements.append(Spacer(1, 1*inch))
@@ -300,6 +398,78 @@ def create_pdf_report(page_name, charts_and_text):
         if 'title' in section and section['title']:
             elements.append(Paragraph(section['title'], heading_style))
             elements.append(Spacer(1, 0.2*inch))
+            
+        # Metrics
+        if 'metrics' in section and section['metrics']:
+            # Create a table for metrics (up to 4 per row)
+            metrics_data = section['metrics']
+            if metrics_data:
+                # Prepare data for table
+                row_data = []
+                for m in metrics_data:
+                    val = Paragraph(str(m.get('value', '')), metric_style)
+                    lbl = Paragraph(m.get('label', ''), metric_label_style)
+                    row_data.append([val, lbl])
+                
+                # If we have metrics, create a table
+                # For simplicity in this version, we'll just stack them or do a simple row
+                # Let's do a single row table where each cell has value/label
+                
+                table_data = [[]]
+                for m in metrics_data:
+                    val = str(m.get('value', ''))
+                    lbl = m.get('label', '')
+                    cell_text = f"<b>{val}</b><br/><font size=9 color='#777'>{lbl}</font>"
+                    table_data[0].append(Paragraph(cell_text, metric_style))
+                
+                t = Table(table_data, colWidths=[1.5*inch]*len(table_data[0]))
+                t.setStyle(TableStyle([
+                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#e0e0e0')),
+                    ('ADDBOX', (0,0), (-1,-1), 1, colors.white), # clear borders
+                    ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f8f9fa')),
+                    ('ROUNDEDCORNERS', [5, 5, 5, 5]),
+                ]))
+                elements.append(t)
+                elements.append(Spacer(1, 0.3*inch))
+
+        # Table
+        if 'table' in section and section['table'] is not None:
+             try:
+                df = section['table']
+                # Limit rows to avoid huge PDFs
+                if len(df) > 50:
+                    df = df.head(50)
+                    elements.append(Paragraph("<i>(Affichage des 50 premières lignes uniquement)</i>", text_style))
+                
+                # Convert DataFrame to list of lists
+                data_list = [df.columns.values.tolist()] + df.values.tolist()
+                
+                # Create Table
+                # Calculate approximate widths based on content (naive)
+                col_widths = None # Auto
+                
+                t = Table(data_list)
+                
+                # Add style
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#667eea')),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,0), 10),
+                    ('BOTTOMPADDING', (0,0), (-1,0), 12),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.white),
+                    ('GRID', (0,0), (-1,-1), 1, colors.HexColor('#e0e0e0')),
+                    ('FONTSIZE', (0,1), (-1,-1), 9),
+                    ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8f9fa')])
+                ]))
+                
+                elements.append(t)
+                elements.append(Spacer(1, 0.3*inch))
+             except Exception as e:
+                elements.append(Paragraph(f"<i>Tableau non disponible: {str(e)}</i>", text_style))
         
         # Chart
         if 'figure' in section and section['figure'] is not None:
