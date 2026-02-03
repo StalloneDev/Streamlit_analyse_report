@@ -2,3 +2,11 @@
 headless = true
 address = "127.0.0.1"
 port = 5000
+enableCORS = false
+enableXsrfProtection = false
+
+[theme]
+primaryColor = "#FF4B4B"
+
+[logger]
+level = "debug"
