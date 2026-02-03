@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import export_utils
+import pdf_generators
 
 # Configuration de la page
 st.set_page_config(
@@ -14,8 +16,8 @@ st.set_page_config(
 
 # Fonction pour charger les données
 @st.cache_data
-def load_data():
-    excel_file = 'attached_assets/BP_-_SADCI_GAS_PARAKOU_BP_-_Rapport_Mail_Hebdo_2026-02-02_11-_1770058902583.xlsx'
+def load_data(excel_file):
+    # excel_file est maintenant un objet fichier (UploadedFile) ou un path
     
     sheets = {}
     sheets['duree_distance'] = pd.read_excel(excel_file, sheet_name='Durée - Distance - Conso')
@@ -29,10 +31,30 @@ def load_data():
     
     return sheets
 
-# Charger les données
-data = load_data()
+# Chargement du fichier via la sidebar
+st.sidebar.title("📂 Import de Données")
+uploaded_file = st.sidebar.file_uploader("Choisissez un rapport Excel", type=['xlsx'])
+
+if uploaded_file is None:
+    st.info("👋 Bienvenue! Veuillez importer un fichier Excel pour commencer l'analyse.")
+    st.markdown("""
+    ### Comment utiliser cette application ?
+    1. Regardez dans le menu à gauche (Sidebar)
+    2. Cliquez sur **"Browse files"** ou glissez-déposez votre fichier Excel
+    3. L'analyse se lancera automatiquement
+    """)
+    st.stop() # Arrête l'exécution si aucun fichier n'est chargé
+
+# Charger les données depuis le fichier uploadé
+try:
+    data = load_data(uploaded_file)
+    st.sidebar.success("Fichier chargé avec succès!")
+except Exception as e:
+    st.error(f"Erreur lors de la lecture du fichier: {e}")
+    st.stop()
 
 # Navigation dans la sidebar
+st.sidebar.markdown("---")
 st.sidebar.title("📊 Navigation")
 st.sidebar.markdown("---")
 
@@ -53,6 +75,63 @@ page = pages[selection]
 
 st.sidebar.markdown("---")
 st.sidebar.info("📅 Période: 27/01/2026 - 02/02/2026")
+
+# Section Export
+st.sidebar.markdown("---")
+st.sidebar.title("💾 Export")
+
+col1, col2 = st.sidebar.columns(2)
+
+with col1:
+    # Export Excel - Page actuelle
+    if st.button("📊 Excel", key="export_excel_current", use_container_width=True):
+        excel_data = export_utils.export_data_to_excel(data, current_page=page)
+        filename = export_utils.get_filename(selection, "xlsx")
+        st.sidebar.download_button(
+            label="⬇️ Télécharger",
+            data=excel_data,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_excel"
+        )
+
+with col2:
+    # Export Excel - Toutes les données
+    if st.button("📊 Excel (Tout)", key="export_excel_all", use_container_width=True):
+        excel_data_all = export_utils.export_data_to_excel(data, current_page=None)
+        filename_all = export_utils.get_filename("Rapport_Complet", "xlsx")
+        st.sidebar.download_button(
+            label="⬇️ Télécharger",
+            data=excel_data_all,
+            file_name=filename_all,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_excel_all"
+        )
+
+st.sidebar.markdown("---")
+
+# PDF Export
+if st.sidebar.button("📄 Exporter PDF", key="export_pdf", use_container_width=True):
+    try:
+        # Generate PDF content on-demand using the generator for the current page
+        if page in pdf_generators.PDF_GENERATORS:
+            pdf_content = pdf_generators.PDF_GENERATORS[page](data)
+            pdf_data = export_utils.create_pdf_report(selection, pdf_content)
+            filename_pdf = export_utils.get_filename(selection, "pdf")
+            st.sidebar.download_button(
+                label="⬇️ Télécharger PDF",
+                data=pdf_data,
+                file_name=filename_pdf,
+                mime="application/pdf",
+                key="download_pdf"
+            )
+        else:
+            st.sidebar.info(f"Export PDF non disponible pour cette page. Pages supportées: Synthèse, Durée-Distance, Trajets, Jour/Nuit")
+    except Exception as e:
+        st.sidebar.error(f"Erreur lors de la génération du PDF: {str(e)}")
+
+st.sidebar.caption("💡 **Excel**: Données brutes | **PDF**: Rapport complet avec graphiques")
+
 
 # Fonction utilitaire pour extraire les véhicules
 def get_vehicles(df):
