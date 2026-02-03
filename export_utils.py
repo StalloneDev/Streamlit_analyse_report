@@ -1,6 +1,12 @@
 import io
 import pandas as pd
-import plotly.io as pio
+try:
+    import plotly.io as pio
+    # Test if kaleido is working
+    pio.kaleido.scope.chromium_args += ("--single-process",)
+except Exception as e:
+    print(f"Warning: Plotly image export may not work: {e}")
+    import plotly.io as pio
 from datetime import datetime
 import xlsxwriter
 from reportlab.lib.pagesizes import letter, A4
