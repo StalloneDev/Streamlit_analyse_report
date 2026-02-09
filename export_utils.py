@@ -494,20 +494,30 @@ def create_pdf_report(page_name, charts_and_text):
         
         # Interpretation text
         if 'text' in section and section['text']:
-            # Clean and format text (remove markdown, keep basic formatting)
+            import re
             text = section['text']
-            text = text.replace('**', '<b>').replace('**', '</b>')
+            
+            # Handle bold text: **text** -> <b>text</b>
+            text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+            
+            # Clean other markdown
             text = text.replace('###', '').replace('##', '')
-            text = text.replace('- ', '• ')
+            text = text.replace('- ', '&bull; ')
             text = text.replace('\n\n', '<br/><br/>')
             text = text.replace('\n', '<br/>')
             
-            # Split into paragraphs
+            # Split into paragraphs to add space between them
             paragraphs = text.split('<br/><br/>')
             for para in paragraphs:
                 if para.strip():
-                    elements.append(Paragraph(para.strip(), text_style))
-                    elements.append(Spacer(1, 0.1*inch))
+                    try:
+                        elements.append(Paragraph(para.strip(), text_style))
+                        elements.append(Spacer(1, 0.1*inch))
+                    except Exception:
+                        # Fallback if ReportLab XML parser fails
+                        clean_para = para.strip().replace('<b>', '').replace('</b>', '')
+                        elements.append(Paragraph(clean_para, text_style))
+
         
         elements.append(Spacer(1, 0.3*inch))
     

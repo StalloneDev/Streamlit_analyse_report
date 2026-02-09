@@ -55,11 +55,16 @@ def generate_synthese_pdf(data):
     fig1.update_layout(height=500, showlegend=False)
     
     interpretation1 = """
-    Observations Clés:
-    - La flotte comprend plusieurs véhicules avec des niveaux d'utilisation très variés
-    - Certains véhicules présentent une activité significativement plus importante
-    - Les trajets non autorisés représentent un point d'attention majeur
-    """
+**Observations Clés:**
+- La flotte comprend plusieurs véhicules avec des niveaux d'utilisation très variés
+- Certains véhicules présentent une activité significativement plus importante
+- Les trajets non autorisés représentent un point d'attention majeur
+
+**Recommandations:**
+1. **Optimisation de la flotte**: Réévaluer l'affectation des véhicules selon l'utilisation réelle
+2. **Suivi des infractions**: Mettre en place un système de suivi plus strict pour les trajets non autorisés
+3. **Formation conducteurs**: Organiser des sessions de sensibilisation sur le respect des règles
+"""
     
     content.append({
         'title': 'Vue d\'Ensemble - Distance',
@@ -79,9 +84,9 @@ def generate_synthese_pdf(data):
     )
     
     interpretation2 = f"""
-    Trajets de jour: {trajets_jour} ({trajets_jour/(trajets_jour+trajets_nuit)*100:.1f}%)
-    Trajets de nuit: {trajets_nuit} ({trajets_nuit/(trajets_jour+trajets_nuit)*100:.1f}%)
-    """
+Trajets de jour: {trajets_jour} ({trajets_jour/(trajets_jour+trajets_nuit)*100:.1f}%)
+Trajets de nuit: {trajets_nuit} ({trajets_nuit/(trajets_jour+trajets_nuit)*100:.1f}%)
+"""
     
     content.append({
         'title': 'Répartition Conduite Jour vs Nuit',
@@ -125,10 +130,21 @@ def generate_duree_pdf(data):
         color_continuous_scale='Viridis'
     )
     
+    interpretation1 = """
+**Analyse:**
+- Les véhicules présentent des disparités importantes en termes de kilométrage
+- Les véhicules les plus utilisés peuvent nécessiter une maintenance plus fréquente
+- L'écart entre le véhicule le plus et le moins utilisé indique une possible sous-utilisation de certains véhicules
+
+**Points d'attention:**
+- 🔴 Véhicules avec kilométrage élevé: planifier des contrôles techniques
+- 🟡 Véhicules peu utilisés: évaluer la pertinence de leur maintien dans la flotte
+"""
+
     content.append({
         'title': 'Distance Parcourue',
         'figure': fig1,
-        'text': "Les véhicules les plus utilisés peuvent nécessiter une maintenance plus fréquente."
+        'text': interpretation1
     })
     
     # Nb trajets
@@ -141,10 +157,37 @@ def generate_duree_pdf(data):
         color_continuous_scale='Oranges'
     )
     
+    interpretation2 = """
+**Observations:**
+- La fréquence des trajets varie considérablement selon les véhicules
+- Un nombre élevé de trajets courts peut indiquer des missions de proximité
+- Un faible nombre de trajets longs peut indiquer des missions inter-régionales
+
+**Recommandations:**
+1. Analyser la corrélation entre nombre de trajets et type de mission
+2. Optimiser les affectations pour réduire les trajets à vide
+"""
+
     content.append({
         'title': 'Fréquence des Trajets',
         'figure': fig2,
-        'text': "La fréquence des trajets varie considérablement selon les véhicules."
+        'text': interpretation2
+    })
+
+    # Profil d'utilisation
+    interpretation3 = """
+**Types de profils identifiés:**
+- **Courte distance / Haute fréquence**: Missions urbaines et livraisons locales
+- **Longue distance / Basse fréquence**: Missions inter-villes ou régionales
+- **Usage mixte**: Véhicules polyvalents
+
+**Recommandations:**
+- Adapter le type de véhicule au profil de mission
+- Considérer des véhicules économiques pour les trajets urbains fréquents
+"""
+    content.append({
+        'title': 'Profil d\'Utilisation',
+        'text': interpretation3
     })
     
     return content
@@ -175,27 +218,84 @@ def generate_trajets_pdf(data):
         color_continuous_scale='Reds'
     )
     
+    interpretation1 = """
+**Analyse Critique:**
+- Certains véhicules montrent un nombre d'incidents particulièrement élevé
+- Ces véhicules nécessitent une attention immédiate et un suivi renforcé
+- La récurrence d'incidents sur les mêmes véhicules peut indiquer des problèmes systémiques
+
+**Actions Recommandées:**
+1. 🔴 **Priorité Haute**: Convoquer les conducteurs des véhicules les plus problématiques
+2. 🟠 **Priorité Moyenne**: Mettre en place un système d'alerte en temps réel
+3. 🟡 **Amélioration Continue**: Former les conducteurs sur les zones autorisées
+"""
+
     content.append({
         'title': 'Nombre d\'Incidents par Véhicule',
         'figure': fig1,
-        'text': "Certains véhicules montrent un nombre d'incidents particulièrement élevé."
+        'text': interpretation1
     })
     
-    # Tableau des incidents
-    # Columns to try to include
-    cols_to_include = ['Regroupement', 'date_debut', 'Lieu de départ', "Lieu d'arrivée", 'Kilométrage']
-    # Filter only existing columns
-    existing_cols = [c for c in cols_to_include if c in df_vehicles.columns]
+    # Kilométrage non autorisé
+    km_non_auth = df_vehicles.groupby('Regroupement')['Kilométrage'].sum().reset_index()
+    km_non_auth = km_non_auth.sort_values('Kilométrage', ascending=False)
     
-    if existing_cols:
-        recap = df_vehicles[existing_cols].head(20)
-        if 'Kilométrage' in recap.columns:
-            recap['Kilométrage'] = recap['Kilométrage'].round(2)
-        
-        content.append({
-            'title': 'Détail des Derniers Incidents',
-            'table': recap
-        })
+    fig2 = px.bar(
+        km_non_auth.head(15),
+        x='Regroupement',
+        y='Kilométrage',
+        title='Top 15 - Kilométrage Non Autorisé (km)',
+        color='Kilométrage',
+        color_continuous_scale='OrRd'
+    )
+    
+    interpretation2 = """
+**Coût Estimé des Trajets Non Autorisés:**
+- Consommation de carburant supplémentaire
+- Usure prématurée des véhicules
+- Risques d'accidents hors zones couvertes
+
+**Recommandations:**
+- Calculer le coût financier des trajets non autorisés
+- Établir des sanctions progressives selon le kilométrage
+"""
+
+    content.append({
+        'title': 'Kilométrage Non Autorisé',
+        'figure': fig2,
+        'text': interpretation2
+    })
+
+    # Vitesse lors des incidents
+    vitesse_incidents = df_vehicles.groupby('Regroupement')['Vitesse maxi'].max().reset_index()
+    vitesse_incidents = vitesse_incidents.sort_values('Vitesse maxi', ascending=False)
+    
+    fig3 = px.bar(
+        vitesse_incidents.head(15),
+        x='Regroupement',
+        y='Vitesse maxi',
+        title='Vitesse Maximale lors d\'Incidents',
+        color='Vitesse maxi',
+        color_continuous_scale='YlOrRd'
+    )
+    fig3.add_hline(y=50, line_dash="dash", line_color="red")
+    
+    interpretation3 = """
+**Alerte Sécurité:**
+- Les vitesses élevées lors de trajets non autorisés augmentent considérablement le risque d'accidents
+- Ces comportements doivent être traités avec la plus grande priorité
+
+**Actions Immédiates:**
+1. Identifier les conducteurs concernés
+2. Organiser des entretiens individuels
+3. Envisager des mesures disciplinaires si récidive
+"""
+
+    content.append({
+        'title': 'Vitesse pendant les Incidents',
+        'figure': fig3,
+        'text': interpretation3
+    })
     
     return content
 
@@ -236,10 +336,37 @@ def generate_jour_nuit_pdf(data):
     fig.add_trace(go.Bar(name='Nuit', x=comparison['Véhicule'], y=comparison['Km Nuit'], marker_color='#1E3A5F'))
     fig.update_layout(barmode='group', title='Comparaison Kilométrage Jour/Nuit par Véhicule', height=450)
     
+    interpretation1 = """
+**Observations:**
+- La majorité des trajets s'effectuent de jour, ce qui est conforme aux bonnes pratiques
+- Certains véhicules présentent une activité nocturne significative
+- L'activité nocturne peut être justifiée par des missions spécifiques
+
+**Points de Vigilance:**
+- 🌙 La conduite nocturne présente des risques accrus (fatigue, visibilité réduite)
+- Vérifier que les conducteurs de nuit sont bien reposés
+- S'assurer que les trajets nocturnes sont justifiés
+"""
+
     content.append({
         'title': 'Kilométrage Jour vs Nuit par Véhicule',
         'figure': fig,
-        'text': "La conduite nocturne présente des risques accrus. Vérifier que les conducteurs de nuit sont bien reposés."
+        'text': interpretation1
+    })
+
+    interpretation2 = """
+**Analyse des Vitesses:**
+- Comparer les vitesses jour/nuit permet d'identifier les comportements à risque
+- Une vitesse élevée de nuit est particulièrement dangereuse
+
+**Recommandations:**
+1. Limiter les vitesses autorisées de nuit à un seuil inférieur
+2. Mettre en place des alertes automatiques pour excès de vitesse nocturne
+3. Sensibiliser les conducteurs aux risques de la conduite rapide de nuit
+"""
+    content.append({
+        'title': 'Analyse des Vitesses Jour vs Nuit',
+        'text': interpretation2
     })
     
     return content
@@ -276,18 +403,42 @@ def generate_limitation_vitesse_pdf(data):
         color_continuous_scale='Reds'
     )
     
+    interpretation1 = """
+**Analyse des Dépassements:**
+- Les véhicules listés ont dépassé la limite de 50 km/h (zone urbaine)
+- Un nombre élevé d'infractions indique un comportement à risque récurrent
+
+**Actions Prioritaires:**
+1. 🔴 Convoquer les conducteurs des véhicules avec > 5 infractions
+2. 🟠 Avertissement formel pour 2-5 infractions
+3. 🟡 Sensibilisation pour < 2 infractions
+"""
+
     content.append({
         'title': 'Infractions par Véhicule',
-        'figure': fig1
+        'figure': fig1,
+        'text': interpretation1
     })
-    
-    # Table recap
-    recap = df_v[df_v['Vitesse maxi'] > 50][['Regroupement', 'Vitesse maxi', 'Emplacement initial', "Lieu d'arrivée"]]
-    recap = recap.sort_values('Vitesse maxi', ascending=False).head(20)
-    
+
+    interpretation2 = """
+**Classification des Infractions:**
+- ✅ **Conforme**: Respect de la limite 50 km/h
+- 🟡 **Légère**: 51-60 km/h - Avertissement
+- 🟠 **Modérée**: 61-80 km/h - Sanction mineure
+- 🔴 **Grave**: 81-100 km/h - Sanction majeure
+- 🟣 **Très Grave**: >100 km/h - Suspension possible
+
+**Barème de Sanctions Recommandé:**
+| Catégorie | Sanction |
+|-----------|----------|
+| Légère | Avertissement verbal |
+| Modérée | Avertissement écrit |
+| Grave | Suspension 1 semaine |
+| Très Grave | Suspension 1 mois |
+"""
     content.append({
-        'title': 'Détail des Excès de Vitesse',
-        'table': recap
+        'title': 'Niveaux de Gravité et Sanctions',
+        'text': interpretation2
     })
     
     return content
@@ -316,19 +467,36 @@ def generate_notifications_pdf(data):
         title='Répartition des Types de Notifications'
     )
     
+    interpretation1 = """
+**Analyse des Alertes:**
+- Les notifications reflètent les événements importants de la flotte
+- La prépondérance de certains types peut indiquer des problèmes récurrents
+
+**Types Courants:**
+- **Perte de Connexion**: Problèmes techniques ou zones non couvertes
+- **Entrée/Sortie POI**: Suivi des passages dans les zones définies
+- **Alertes de Vitesse**: Dépassements des limites autorisées
+"""
+
     content.append({
         'title': 'Distribution des Notifications',
-        'figure': fig1
+        'figure': fig1,
+        'text': interpretation1
     })
-    
-    # Table top vehicles
-    df_vehicles = df[~df['Regroupement'].str.startswith('202', na=False)]
-    notif_par_vehicule = df_vehicles.groupby('Regroupement').size().reset_index(name='Nombre')
-    notif_par_vehicule = notif_par_vehicule.sort_values('Nombre', ascending=False).head(20)
-    
+
+    interpretation2 = """
+**Points d'Attention:**
+- Un nombre élevé de notifications peut indiquer des problèmes avec le véhicule ou le conducteur
+- Analyser la nature des notifications pour chaque véhicule problématique
+
+**Actions:**
+1. Examiner en détail les véhicules avec le plus de notifications
+2. Identifier si les alertes sont techniques ou comportementales
+3. Prendre les mesures correctives appropriées
+"""
     content.append({
-        'title': 'Véhicules les plus notifiés',
-        'table': notif_par_vehicule
+        'title': 'Analyse des Alertes par Véhicule',
+        'text': interpretation2
     })
     
     return content
@@ -352,14 +520,35 @@ def generate_temps_poi_pdf(data):
         title='Top 15 - Points d\'Intérêt les Plus Visités'
     )
     
+    interpretation1 = """
+**Analyse:**
+- Les points d'intérêt les plus visités reflètent les activités principales de la flotte
+- Ces données permettent d'optimiser les itinéraires et les affectations
+
+**Recommandations:**
+1. Analyser la cohérence des visites avec les missions assignées
+2. Identifier les POI stratégiques pour l'activité
+3. Optimiser les temps de passage dans chaque POI
+"""
+
     content.append({
         'title': 'Fréquentation des POI',
-        'figure': fig1
+        'figure': fig1,
+        'text': interpretation1
     })
-    
+
+    interpretation2 = """
+**Observations:**
+- Le nombre de visites reflète l'activité de chaque véhicule
+- Permet d'évaluer la productivité relative de chaque véhicule
+
+**Points d'Amélioration:**
+- Équilibrer la charge de travail entre les véhicules
+- Identifier les véhicules sous-utilisés
+"""
     content.append({
-        'title': 'Détail des Visites par POI',
-        'table': poi_stats.head(20)
+        'title': 'Analyse de l\'Activité par Véhicule',
+        'text': interpretation2
     })
     
     return content
@@ -391,9 +580,35 @@ def generate_visites_poi_pdf(data):
         color_continuous_scale='Tealgrn'
     )
     
+    interpretation1 = """
+**Analyse Détaillée:**
+- Cette vue permet d'identifier les destinations les plus fréquentes
+- Les POI très visités sont critiques pour les opérations
+
+**Recommandations:**
+1. Optimiser les itinéraires vers les POI les plus fréquentés
+2. Évaluer le temps passé dans chaque POI
+3. Identifier les POI rarement visités qui pourraient être retirés de la liste
+"""
+
     content.append({
         'title': 'Visites par Véhicule',
-        'figure': fig2
+        'figure': fig2,
+        'text': interpretation1
+    })
+
+    interpretation2 = """
+**Observations:**
+- Le nombre de visites par véhicule reflète son niveau d'activité
+- Permet de mesurer la productivité et l'utilisation effective
+
+**Actions:**
+- Comparer avec les objectifs de visites assignés
+- Identifier les véhicules les plus/moins productifs
+"""
+    content.append({
+        'title': 'Productivité des Véhicules',
+        'text': interpretation2
     })
     
     return content
@@ -425,22 +640,38 @@ def generate_vitesse_pdf(data):
     )
     fig1.add_hline(y=50, line_dash="dash", line_color="red")
     
+    interpretation1 = """
+**Analyse des Infractions:**
+- Les dépassements de vitesse représentent un risque majeur pour la sécurité
+- Chaque infraction doit être documentée et suivie
+
+**Niveaux d'Alerte:**
+- 🟡 50-60 km/h : Avertissement
+- 🟠 60-80 km/h : Infraction modérée
+- 🔴 >80 km/h : Infraction grave
+
+**Actions Recommandées:**
+1. Avertissement formel pour les conducteurs concernés
+2. Formation obligatoire sur la sécurité routière
+3. Sanctions progressives en cas de récidive
+"""
+
     content.append({
         'title': 'Vitesse Maximale par Véhicule',
-        'figure': fig1
+        'figure': fig1,
+        'text': interpretation1
     })
-    
-    # Stats table
-    stats = df_v.groupby('Regroupement').agg({
-        'Vitesse maxi': ['max', 'mean']
-    }).reset_index()
-    stats.columns = ['Véhicule', 'Vitesse Max', 'Vitesse Moy']
-    stats = stats.sort_values('Vitesse Max', ascending=False).head(20)
-    stats['Vitesse Moy'] = stats['Vitesse Moy'].round(1)
-    
+
+    interpretation2 = """
+1. **Surveillance Active**: Mettre en place des alertes en temps réel pour les dépassements
+2. **Analyse Comportementale**: Identifier les patterns de conduite à risque
+3. **Formation Continue**: Sessions régulières de sensibilisation à la sécurité
+4. **Incentives**: Récompenser les conducteurs respectueux des limites
+5. **Technologie**: Envisager l'installation de limiteurs de vitesse
+"""
     content.append({
-        'title': 'Statistiques Détaillées',
-        'table': stats
+        'title': 'Recommandations Finales',
+        'text': interpretation2
     })
     
     return content
