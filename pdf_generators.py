@@ -27,6 +27,18 @@ def generate_synthese_pdf(data):
     
     # Section Métriques
     content.append({
+        'title': '📋 Présentation du Rapport',
+        'text': """
+Ce rapport fournit une **analyse approfondie et des interprétations complètes** des données de la flotte de véhicules BP - SADCI GAS PARAKOU. Contrairement à un simple rapport graphique, ce document offre:
+
+- ✅ **Interprétations détaillées** de chaque métrique
+- ✅ **Recommandations actionnables** pour optimiser la gestion de flotte
+- ✅ **Alertes et points d'attention** identifiés dans les données
+- ✅ **Tendances et patterns** observés
+"""
+    })
+
+    content.append({
         'title': 'Synthèse Globale',
         'metrics': [
             {'label': 'Véhicules Actifs', 'value': len(vehicles)},
@@ -436,9 +448,24 @@ def generate_limitation_vitesse_pdf(data):
 | Grave | Suspension 1 semaine |
 | Très Grave | Suspension 1 mois |
 """
+    interpretation3 = """
+**Observations:**
+- Le taux d'infraction peut varier entre jour et nuit
+- Les infractions nocturnes sont particulièrement dangereuses
+
+**Risques Nocturnes:**
+- Visibilité réduite
+- Fatigue des conducteurs
+- Moins de surveillance routière
+
+**Recommandations:**
+1. Renforcer la surveillance des vitesses nocturnes
+2. Limiter les trajets nocturnes aux missions essentielles
+3. Installer des limiteurs de vitesse sur les véhicules récidivistes
+"""
     content.append({
-        'title': 'Niveaux de Gravité et Sanctions',
-        'text': interpretation2
+        'title': 'Infractions Temporelles',
+        'text': interpretation3
     })
     
     return content
@@ -663,6 +690,21 @@ def generate_vitesse_pdf(data):
     })
 
     interpretation2 = """
+**Observations:**
+- La distribution montre le comportement général de la flotte
+- L'étalement vers les vitesses élevées indique des comportements à risque
+
+**Indicateurs Clés:**
+- Médiane des vitesses maximales
+- Pourcentage de trajets avec dépassement
+- Fréquence des infractions par conducteur
+"""
+    content.append({
+        'title': 'Profil de Vitesse Global',
+        'text': interpretation2
+    })
+
+    interpretation3 = """
 1. **Surveillance Active**: Mettre en place des alertes en temps réel pour les dépassements
 2. **Analyse Comportementale**: Identifier les patterns de conduite à risque
 3. **Formation Continue**: Sessions régulières de sensibilisation à la sécurité
@@ -671,7 +713,7 @@ def generate_vitesse_pdf(data):
 """
     content.append({
         'title': 'Recommandations Finales',
-        'text': interpretation2
+        'text': interpretation3
     })
     
     return content

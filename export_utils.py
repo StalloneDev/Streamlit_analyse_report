@@ -16,6 +16,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import base64
+import re
 
 def export_data_to_excel(data_sheets, current_page=None, report_content=None):
     """
@@ -77,8 +78,11 @@ def export_data_to_excel(data_sheets, current_page=None, report_content=None):
                         # Text interpretation
                         if 'text' in section and section['text']:
                             text = section['text'].strip()
-                            text = text.replace('**', '').replace('###', '').replace('- ', '• ')
+                            # Clean up markdown for Excel
+                            text = text.replace('**', '').replace('###', '').replace('##', '')
+                            text = text.replace('- ', '• ')
                             worksheet.write(row, 0, text, text_format)
+                            # Estimate height based on newlines and wrapped text
                             lines = text.count('\n') + (len(text) // 60)
                             row += max(1, lines) + 1
                         
@@ -494,7 +498,6 @@ def create_pdf_report(page_name, charts_and_text):
         
         # Interpretation text
         if 'text' in section and section['text']:
-            import re
             text = section['text']
             
             # Handle bold text: **text** -> <b>text</b>
